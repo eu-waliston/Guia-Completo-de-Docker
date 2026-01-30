@@ -1,0 +1,183 @@
+# 🚀 MÓDULO 10 — Projeto Prático Completo com Docker
+
+> Chegamos no ponto onde tudo se conecta. Este módulo não é sobre aprender algo novo — é sobre **provar que você sabe**. Aqui o Docker deixa de ser estudo e vira **entrega real**.
+
+---
+
+## 🎯 Objetivo do Módulo
+
+Neste módulo você vai:
+
+* Integrar todos os conceitos aprendidos nos módulos anteriores
+* Subir uma **aplicação full-stack real** com múltiplos serviços
+* Trabalhar com **ambiente isolado, reproduzível e versionado**
+* Simular um cenário próximo ao de produção
+* Desenvolver visão de **arquitetura containerizada**
+
+Se antes você aprendia peças, agora você monta o quebra‑cabeça inteiro. 🧩🐳
+
+---
+
+## 10.1 🧱 Visão Geral da Aplicação Full-Stack
+
+A aplicação é composta por **múltiplos serviços independentes**, cada um rodando em seu próprio container, mas todos conversando entre si por meio de redes Docker.
+
+### Componentes do projeto
+
+* **Frontend** — Interface do usuário (SPA)
+* **Backend** — API responsável pela lógica de negócio
+* **Nginx** — Proxy reverso e gateway de entrada
+* **Docker Compose** — Orquestração local de todos os serviços
+
+Essa arquitetura segue o princípio:
+
+> *Um serviço, um container. Uma responsabilidade por vez.*
+
+---
+
+## 🗂️ Estrutura do Projeto
+
+```
+projeto/
+├── docker-compose.yml
+├── frontend/
+│   ├── Dockerfile
+│   ├── package.json
+│   └── src/
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── app/
+├── nginx/
+│   └── nginx.conf
+└── .env
+```
+
+Cada pasta representa um **serviço independente**, com seu próprio ciclo de vida e responsabilidades bem definidas.
+
+---
+
+## ⚙️ docker-compose.yml — O Cérebro da Stack
+
+O `docker-compose.yml` é o arquivo que descreve **como todos os serviços coexistem**.
+
+Ele define:
+
+* Quais serviços existem
+* Como eles são construídos
+* Como se comunicam
+* Quais portas são expostas
+* Quais variáveis de ambiente utilizam
+
+> Compose não executa containers isolados.
+> Ele executa **um ecossistema inteiro**.
+
+---
+
+## 🎨 Frontend — Interface do Usuário
+
+O frontend é responsável pela **experiência do usuário**.
+
+### Papel do container de frontend
+
+* Build da aplicação
+* Servir arquivos estáticos
+* Consumir a API do backend
+
+### Conceitos aplicados
+
+* Build isolado via Dockerfile
+* Ambiente previsível
+* Comunicação via rede Docker
+
+> O frontend não precisa saber onde o backend roda.
+> Ele só precisa saber **o nome do serviço**.
+
+---
+
+## 🧠 Backend — API e Regra de Negócio
+
+O backend é o coração da aplicação.
+
+### Responsabilidades
+
+* Processar requisições
+* Aplicar regras de negócio
+* Retornar dados ao frontend
+
+### Conceitos Docker aplicados
+
+* Container stateless
+* Variáveis de ambiente para configuração
+* Escalabilidade horizontal
+
+> Backend bem containerizado escala fácil e falha com dignidade.
+
+---
+
+## 🌐 Nginx — Proxy Reverso
+
+O Nginx atua como **porta de entrada da aplicação**.
+
+### Funções principais
+
+* Redirecionar requisições
+* Centralizar acesso
+* Servir como camada de abstração
+
+### Benefícios
+
+* Separação clara de responsabilidades
+* Facilidade para SSL e cache
+* Arquitetura mais próxima da produção real
+
+> Em produção, raramente clientes falam direto com containers.
+> Eles falam com um proxy.
+
+---
+
+## 🔐 Arquivo `.env` — Configuração sem Acoplamento
+
+O arquivo `.env` concentra **configurações sensíveis e variáveis de ambiente**.
+
+### Por que isso importa?
+
+* Evita hardcode
+* Facilita troca de ambiente
+* Mantém segurança
+
+> Código não muda entre ambientes.
+> Configuração muda.
+
+---
+
+## 🧠 Conceitos-Chave Consolidados neste Módulo
+
+Neste projeto você pratica, na vida real:
+
+* Containers efêmeros
+* Imagens imutáveis
+* Persistência controlada
+* Redes internas Docker
+* Orquestração com Compose
+* Separação de responsabilidades
+
+Este módulo não ensina apenas Docker.
+Ele ensina **arquitetura moderna de aplicações**.
+
+---
+
+## 🏁 Encerramento
+
+Se você chegou até aqui, você não é mais iniciante.
+
+Você:
+
+* Entende Docker
+* Constrói imagens
+* Orquestra serviços
+* Pensa em produção
+
+Docker agora é ferramenta — não obstáculo.
+
+🐳🔥 **Missão cumprida.**
