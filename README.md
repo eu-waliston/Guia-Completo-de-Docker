@@ -285,6 +285,6 @@ Cobertura completa dos domínios:
 
 👉 **Bora dar o primeiro passo?**
 
-📘 [Módulo 1 — Fundamentos do Docker](docs/modules/01-fundamentos.md)
+📘 [Módulo 1 — Fundamentos do Docker](docs/MODULO_!/01-fundamentos.md)
 
 Porque container bom é container entendido. 🐳🔥
