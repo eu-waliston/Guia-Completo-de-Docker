@@ -20,14 +20,54 @@ Se antes você aprendia peças, agora você monta o quebra‑cabeça inteiro. �
 
 ## 10.1 🧱 Visão Geral da Aplicação Full-Stack
 
-A aplicação é composta por **múltiplos serviços independentes**, cada um rodando em seu próprio container, mas todos conversando entre si por meio de redes Docker.
+A aplicação é composta por **Plataforma de Microserviços**, cada um rodando em seu próprio container, mas todos conversando entre si por meio de redes Docker.
 
-### Componentes do projeto
+### 📋 Visão Geral do Projeto
 
-* **Frontend** — Interface do usuário (SPA)
-* **Backend** — API responsável pela lógica de negócio
-* **Nginx** — Proxy reverso e gateway de entrada
-* **Docker Compose** — Orquestração local de todos os serviços
+**Vamos construir uma plataforma completa de microserviços com:**
+
+    - API Gateway (Traefik)
+
+    - 3 Microserviços (Python, Node.js, Go)
+
+    - Banco de Dados (PostgreSQL + Redis)
+
+    - Fila de Mensagens (RabbitMQ)
+
+    - Monitoramento (Grafana + Prometheus + cAdvisor)
+
+    - Logging Centralizado (ELK Stack)
+
+    - Autenticação (Keycloak)
+
+    - Storage (MinIO - S3 compatible)
+
+### 🏗️ Arquitetura do Sistema
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       API Gateway (Traefik)                 │
+│                       porta: 80, 443                        │
+└────────────────┬────────────────┬────────────────┬──────────┘
+                 │                │                │
+    ┌────────────▼────┐  ┌────────▼────────┐  ┌───▼────────────┐
+    │   Serviço Users │  │ Serviço Products│  │ Serviço Orders │
+    │   (Python)      │  │ (Node.js)       │  │ (Go)           │
+    │   porta: 8001   │  │ porta: 8002     │  │ porta: 8003    │
+    └────────────┬────┘  └────────┬────────┘  └───┬────────────┘
+                 │                │                │
+    ┌────────────▼────┐  ┌────────▼────────┐  ┌───▼────────────┐
+    │   PostgreSQL    │  │    RabbitMQ     │  │     Redis      │
+    │   (Users DB)    │  │   (Messaging)   │  │   (Cache)      │
+    └─────────────────┘  └─────────────────┘  └────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    Camada de Observabilidade                │
+├─────────────────────────────────────────────────────────────┤
+│  Prometheus │ Grafana │ cAdvisor │ ELK Stack │ Jaeger       │
+└─────────────────────────────────────────────────────────────┘
+
+
+```
 
 Essa arquitetura segue o princípio:
 
@@ -35,23 +75,78 @@ Essa arquitetura segue o princípio:
 
 ---
 
+
+
 ## 🗂️ Estrutura do Projeto
 
 ```
-projeto/
+microservices-platform/
 ├── docker-compose.yml
-├── frontend/
+├── .env.example
+├── .gitignore
+├── README.md
+├── scripts/
+│   ├── init.sh
+│   ├── backup.sh
+│   ├── deploy.sh
+│   └── monitor.sh
+├── gateway/
 │   ├── Dockerfile
-│   ├── package.json
-│   └── src/
-├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/
-├── nginx/
-│   └── nginx.conf
-└── .env
+│   └── traefik.yaml
+├── services/
+│   ├── users-service/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── app/
+│   │   │   ├── __init__.py
+│   │   │   ├── main.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   └── database.py
+│   │   └── alembic/
+│   ├── products-service/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   ├── src/
+│   │   │   ├── server.js
+│   │   │   ├── models/
+│   │   │   └── routes/
+│   │   └── tests/
+│   └── orders-service/
+│       ├── Dockerfile
+│       ├── go.mod
+│       ├── main.go
+│       ├── handlers/
+│       └── models/
+├── databases/
+│   ├── init-scripts/
+│   │   ├── 01-init-users.sql
+│   │   ├── 02-init-products.sql
+│   │   └── 03-init-orders.sql
+│   └── backup/
+├── messaging/
+│   └── rabbitmq/
+│       └── definitions.json
+├── monitoring/
+│   ├── prometheus/
+│   │   └── prometheus.yml
+│   ├── grafana/
+│   │   ├── dashboards/
+│   │   └── datasources/
+│   └── alerts/
+│       └── alertmanager.yml
+├── logging/
+│   ├── elasticsearch/
+│   ├── logstash/
+│   │   └── logstash.conf
+│   └── kibana/
+├── storage/
+│   └── minio/
+└── auth/
+    └── keycloak/
+        └── realm-export.json
 ```
+
 
 Cada pasta representa um **serviço independente**, com seu próprio ciclo de vida e responsabilidades bem definidas.
 
