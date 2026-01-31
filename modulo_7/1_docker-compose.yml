@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  web:
+    image: nginx:alpine
+    container_name: nginx-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./html/urs/share/nginx/html
+    network:
+      - frontend
+    depends_on:
+      - api
+  api:
+    build: ./api
+    container_name: flask-api
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=mydb
+    network:
+      - frontend
+      - backend
+    volumes:
+      - ./api:/app
+
+  db:
+    image: postgres:14
+    container_name: postgres-db
+    environment:
+        POSTGRES_USER: admin
+        POSTGRES_PASSWORD: secret
+        POSTGRES_DB: mydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  volumes:
+    postgres_data:
+
+  network:
+    backend:
