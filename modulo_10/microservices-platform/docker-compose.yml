@@ -1,0 +1,432 @@
+version: '3.8'
+
+x-common-variables: &common-variables
+  PROJECT_NAME: microservices-plataform
+  DOMAIN: localhost
+  TZ: America/Sao_Paulo
+
+x-common-labels: &common-labels
+  <<"com.microservices.project=${PROJECT_NAME}"
+  <<"com.microservices.version=1.0"
+
+
+
+networks:
+  frontend:
+    driver: bridge
+    name: ${PROJECT_NAME}-frontend
+  backend:
+    driver: bridge
+    name: ${PROJECT_NAME}-backend
+  monitoring:
+    driver: bridge
+    name: ${PROJECT_NAME}-monitoring
+  logging:
+    driver: bridge
+    name: ${PROJECT_NAME}-logging
+
+volumes:
+  postgres_data:
+    name: ${PROJECT_NAME}-postgres-data
+  redis_data:
+    name: ${PROJECT_NAME}-redis-data
+  rabbitmq_data:
+    name: ${PROJECT_NAME}-rabbitmq-data
+  minio_data:
+    name: ${PROJECT_NAME}-minio-data
+  elasticsearch_data:
+    name: ${PROJECT_NAME}-elasticsearch-data
+  grafana_data:
+    name: ${PROJECT_NAME}-grafana-data
+  prometheus_data:
+    name: ${PROJECT_NAME}-prometheus-data
+
+  users_logs:
+  products_logs:
+  orders_logs:
+  letsencrypt:
+services:
+  # ==================== API GATEWAY ====================
+  traefik:
+    image: traefik:v3.0
+    container_name: ${PROJECT_NAME}-gateway
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=admin@${DOMAIN}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./gateway/traefik.yaml:/etc/traefik/traefik.yml"
+      - "letsencrypt:/letsencrypt"
+    networks:
+      - frontend
+      - backend
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== DATABASES ====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ${PROJECT_NAME}-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+      POSTGRES_DB: ${DB_NAME:-microservices}
+      POSTGRES_MULTIPLE_DATABASES: "usersdb,productsdb,ordersdb"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./databases/init-scripts:/docker-entrypoint-initdb.d
+      - ./databases/backup:/backup
+    networks:
+      - backend
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME}-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==================== MESSAGING ====================
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: ${PROJECT_NAME}-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin123}
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./messaging/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+    ports:
+      - "15672:15672"  # Management UI
+    networks:
+      - backend
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== MICROSERVICES ====================
+  users-service:
+    build:
+      context: ./services/users-service
+      dockerfile: Dockerfile
+      args:
+        ENVIRONMENT: ${ENVIRONMENT:-production}
+    container_name: ${PROJECT_NAME}-users-service
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin123}@postgres:5432/usersdb
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin123}@rabbitmq:5672
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this}
+      - SERVICE_NAME=users-service
+    volumes:
+      - ./services/users-service:/app
+      - users_logs:/app/logs
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - *common-labels
+      - "traefik.enable=true"
+      - "traefik.http.routers.users-service.rule=PathPrefix(`/api/users`)"
+      - "traefik.http.services.users-service.loadbalancer.server.port=8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  products-service:
+    build:
+      context: ./services/products-service
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME}-products-service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=productsdb
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+    volumes:
+      - ./services/products-service:/app
+      - products_logs:/app/logs
+      - ./storage/uploads:/app/uploads
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - *common-labels
+      - "traefik.enable=true"
+      - "traefik.http.routers.products-service.rule=PathPrefix(`/api/products`)"
+      - "traefik.http.services.products-service.loadbalancer.server.port=8002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  orders-service:
+    build:
+      context: ./services/orders-service
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME}-orders-service
+    environment:
+      - DB_CONNECTION=host=postgres port=5432 user=${DB_USER:-admin} password=${DB_PASSWORD:-admin123} dbname=ordersdb sslmode=disable
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin123}@rabbitmq:5672
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+    volumes:
+      - ./services/orders-service:/app
+      - orders_logs:/app/logs
+    networks:
+      - backend
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    labels:
+      - *common-labels
+      - "traefik.enable=true"
+      - "traefik.http.routers.orders-service.rule=PathPrefix(`/api/orders`)"
+      - "traefik.http.services.orders-service.loadbalancer.server.port=8003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== STORAGE ====================
+  minio:
+    image: minio/minio
+    container_name: ${PROJECT_NAME}-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin123}
+      MINIO_DEFAULT_BUCKETS: "uploads,backups,temp"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    networks:
+      - backend
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ==================== MONITORING ====================
+  prometheus:
+    image: prom/prometheus:v2.45
+    container_name: ${PROJECT_NAME}-prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring
+      - backend
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:10.0
+    container_name: ${PROJECT_NAME}-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring
+      - backend
+    depends_on:
+      - prometheus
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: ${PROJECT_NAME}-cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8081:8080"
+    networks:
+      - monitoring
+    labels:
+      - *common-labels
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+
+  # ==================== LOGGING ====================
+  elasticsearch:
+    image: elasticsearch:8.10.0
+    container_name: ${PROJECT_NAME}-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - logging
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  logstash:
+    image: logstash:8.10.0
+    container_name: ${PROJECT_NAME}-logstash
+    volumes:
+      - ./logging/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5000:5000"
+    networks:
+      - logging
+      - backend
+    depends_on:
+      - elasticsearch
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  kibana:
+    image: kibana:8.10.0
+    container_name: ${PROJECT_NAME}-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - logging
+    depends_on:
+      - elasticsearch
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== AUTHENTICATION ====================
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0
+    container_name: ${PROJECT_NAME}-keycloak
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin123}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${DB_USER:-admin}
+      KC_DB_PASSWORD: ${DB_PASSWORD:-admin123}
+    command: ["start-dev"]
+    volumes:
+      - ./auth/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8082:8080"
+    networks:
+      - backend
+    depends_on:
+      - postgres
+    labels:
+      - *common-labels
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/realms/master"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+

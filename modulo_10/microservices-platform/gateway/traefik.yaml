@@ -1,0 +1,37 @@
+api:
+  dashboard: true
+  debug: true
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: admin@localhost
+      storage: /letsencrypt/acme.json
+      tlsChallenge: {}
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker/docker.sock"
+    exposedByDefault: false
+    network: microservices-frontend
+
+log:
+  level: INFO
+
+accessLog: {}
+
+metrics:
+  prometheus:
+    entryPoint: web
