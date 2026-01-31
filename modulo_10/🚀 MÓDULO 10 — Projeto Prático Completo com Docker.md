@@ -147,6 +147,26 @@ microservices-platform/
         └── realm-export.json
 ```
 
+## Script para criar as pastas [ so copiar e colar no terminal]
+
+```
+mkdir -p microservices-platform/{scripts,gateway,services/{users-service/{app,alembic},products-service/{src/{models,routes},tests},orders-service/{handlers,models}},databases/{init-scripts,backup},messaging/rabbitmq,monitoring/{prometheus,grafana/{dashboards,datasources},alerts},logging/{elasticsearch,logstash,kibana},storage/minio,auth/keycloak} && \
+touch microservices-platform/{docker-compose.yml,.env.example,.gitignore,README.md} && \
+touch microservices-platform/scripts/{init.sh,backup.sh,deploy.sh,monitor.sh} && \
+touch microservices-platform/gateway/{Dockerfile,traefik.yaml} && \
+touch microservices-platform/services/users-service/{Dockerfile,requirements.txt} && \
+touch microservices-platform/services/users-service/app/{__init__.py,main.py,models.py,schemas.py,database.py} && \
+touch microservices-platform/services/products-service/{Dockerfile,package.json} && \
+touch microservices-platform/services/products-service/src/server.js && \
+touch microservices-platform/services/orders-service/{Dockerfile,go.mod,main.go} && \
+touch microservices-platform/databases/init-scripts/{01-init-users.sql,02-init-products.sql,03-init-orders.sql} && \
+touch microservices-platform/messaging/rabbitmq/definitions.json && \
+touch microservices-platform/monitoring/prometheus/prometheus.yml && \
+touch microservices-platform/monitoring/alerts/alertmanager.yml && \
+touch microservices-platform/logging/logstash/logstash.conf && \
+touch microservices-platform/auth/keycloak/realm-export.json
+
+```
 
 Cada pasta representa um **serviço independente**, com seu próprio ciclo de vida e responsabilidades bem definidas.
 
